@@ -36,7 +36,6 @@ else
   echo "don't support $uname"
 fi
 
-export NDK_HOME=~/Library/Development/Android/sdk/ndk/21.4.7075529
 export TOOL=$NDK_HOME/toolchains/llvm/prebuilt/$COMPILE_PLAT-x86_64
 export TOOLCHAIN=$NDK_HOME/toolchains/llvm/prebuilt/$COMPILE_PLAT-x86_64/bin
 export SYSROOT=$NDK_HOME/toolchains/llvm/prebuilt/$COMPILE_PLAT-x86_64/sysroot
@@ -47,9 +46,13 @@ export PLATFORM_API=$NDK_HOME/platforms/android-$API/arch-$PLATFORM_ARCH
 export PREFIX=../ffmpeg-android/$ABI
 export ADDITIONAL_CONFIGURE_FLAG="--cpu=$CPU"
 
-THIRD_LIB=$PREFIX
-export EXTRA_CFLAGS="-Os -fPIC $OPTIMIZE_CFLAGS -I$THIRD_LIB/include"
-export EXTRA_LDFLAGS="-lc -lm -ldl -llog -lgcc -lz -landroid -L$THIRD_LIB/lib"
+THIRD_PARTY=$(pwd)/../third_party
+THIRD_LIB=$THIRD_PARTY/lib/$ABI
+THIRD_INCLUDE=$THIRD_PARTY/include
+export EXTRA_CFLAGS="-Os -fPIC $OPTIMIZE_CFLAGS -I$THIRD_INCLUDE"
+export EXTRA_LDFLAGS="-lc -lm -ldl -llog -lgcc -lz -landroid -L$THIRD_LIB"
+
+export PKG_CONFIG_PATH=/home/fengxc/development/projects/opensource/ffmpeg_android/x264/android/armv8-a/lib/pkgconfig
 
 function build_one() {
   ./configure \
@@ -57,6 +60,7 @@ function build_one() {
   --prefix=$PREFIX \
   --cross-prefix=$CROSS_PREFIX \
   --enable-cross-compile \
+  --pkg-config=/usr/bin/pkg-config \
   --arch=$ARCH \
   --cpu=$CPU \
   --cc=$CC \
@@ -121,7 +125,7 @@ ssa,ass,dvbsub,dvdsub,pgssub,mov_text,sami,srt,subrip,text,webvtt \
   --enable-parsers \
   --enable-nonfree \
   --enable-protocols \
-  --enable-openssl \
+  --disable-openssl \
   --enable-protocol=https \
   --disable-demuxers \
   --enable-demuxer=aac,ac3,alaw,amr,amrnb,amrwb,ape,asf,asf_o,ass,av1,avi,cavsvideo,codec2,concat,dash,dnxhd,eac3,flac,flv,\
@@ -136,6 +140,7 @@ make install
 build_one
 
 function link_one_ffmpeg() {
+  echo "Link one ffmpeg"
   $TOOLCHAIN/$ARCH-linux-$ANDROID-ld -rpath-link=$PLATFORM_API/usr/lib -L$PLATFORM_API/usr/lib \
   -L$PREFIX/lib -soname libffmpeg.so \
   -shared -Bsymbolic --whole-archive --no-undefined -o $PREFIX/libffmpeg.so \
@@ -145,11 +150,9 @@ function link_one_ffmpeg() {
   $PREFIX/lib/libavformat.a \
   $PREFIX/lib/libavutil.a \
   $PREFIX/lib/libswscale.a \
-  $PREFIX/lib/libmp3lame.a \
-  $PREFIX/lib/libx264.a \
-  $PREFIX/lib/libssl.a \
-  $PREFIX/lib/libcrypto.a \
-  -lc -lm -lz -ldl -llog -landroid --dynamic-linker=/system/bin/linker $TOOL/lib/gcc/$ARCH-linux-$ANDROID/4.9.x/libgcc_real.a
+  $THIRD_LIB/libmp3lame.a \
+  $THIRD_LIB/libx264.a \
+  -lc -lm -lz -ldl -llog -landroid -lmediandk --dynamic-linker=/system/bin/linker $TOOL/lib/gcc/$ARCH-linux-$ANDROID/4.9.x/libgcc_real.a
 }
 
 link_one_ffmpeg
@@ -167,3 +170,4 @@ link_one_ffmpeg
 #--enable-protocol=https \
 
 #libx264: require_pkg_config --> check_pkg_config
+
