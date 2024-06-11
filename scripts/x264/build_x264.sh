@@ -1,39 +1,73 @@
-#!/bin/bash
+#! /usr/bin/env bash
+# ndk version: 20.0.5594570
+# cross compile x264 for android
 
-archbit=64
-if [ $archbit -eq 32 ];then
-echo "build for 32bit"
-#32bit
-ABI='armeabi-v7a'
-CPU='arm'
-ARCH='arm'
-ANDROID='androideabi'
-else
-#64bit
-echo "build for 64bit"
-ABI='arm64-v8a'
-CPU='aarch64'
-ARCH='arm64'
-ANDROID='android'
-fi
+NDK=$NDK_HOME
+TOOLCHAIN=$NDK/toolchains/llvm/prebuilt/linux-x86_64
+API=21
 
-export NDK_HOME=~/Library/Development/Android/sdk/ndk/21.4.7075529
-export PREBUILT=$NDK_HOME/toolchains/$CPU-linux-$ANDROID-4.9/prebuilt
-export PLATFORM=$NDK_HOME/platforms/android-21/arch-$ARCH
-export TOOLCHAIN=$PREBUILT/linux-x86_64
-export PREFIX=$(pwd)/android/$ABI
+function build_android() {
+  PREFIX=$(pwd)/android/$CPU
+  echo "Compiling x264 for $CPU to $PREFIX"
+  export CC=$CC
+  export CXX=$CXX
 
-function build_x264() {
-./configure \
---prefix=$PREFIX \
---enable-static \
---disable-asm \
---enable-pic \
---host=arm-linux \
---cross-prefix=$TOOLCHAIN/bin/$CPU-linux-$ANDROID- \
---sysroot=$PLATFORM \
-make clean
-make
-make install
+  ./configure \
+    --prefix="$PREFIX" \
+    --disable-cli \
+    --enable-static \
+    --enable-strip \
+    --enable-pic \
+    --disable-asm \
+    --cross-prefix="$CROSS_PREFIX" \
+    --host="$HOST" \
+    --sysroot="$TOOLCHAIN"/sysroot \
+    --extra-cflags="$OPTIMIZE_CFLAGS" \
+    --extra-ldflags="$ADDI_LDFLAGS" || exit 1
+
+  make clean
+  make -j32
+  make install
+  echo "The Compilation of x264 for $CPU is completed: $PREFIX"
 }
-build_x264
+
+#armv8-a
+HOST=aarch64-linux
+ARCH=arm64
+CPU=armv8-a
+CC=$TOOLCHAIN/bin/aarch64-linux-android$API-clang
+echo "CC $CC"
+CXX=$TOOLCHAIN/bin/aarch64-linux-android$API-clang++
+CROSS_PREFIX=$TOOLCHAIN/bin/aarch64-linux-android-
+OPTIMIZE_CFLAGS="-march=$CPU -O2"
+build_android
+
+#armv7-a
+HOST=arm-linux
+ARCH=arm
+CPU=armv7-a
+CC=$TOOLCHAIN/bin/armv7a-linux-androideabi$API-clang
+CXX=$TOOLCHAIN/bin/armv7a-linux-androideabi$API-clang++
+CROSS_PREFIX=$TOOLCHAIN/bin/arm-linux-androideabi-
+OPTIMIZE_CFLAGS="-march=armv7-a -O2 -mfloat-abi=softfp -mfpu=neon"
+build_android
+
+#x86
+HOST=i686-linux
+ARCH=x86
+CPU=x86
+CC=$TOOLCHAIN/bin/i686-linux-android$API-clang
+CXX=$TOOLCHAIN/bin/i686-linux-android$API-clang++
+CROSS_PREFIX=$TOOLCHAIN/bin/i686-linux-android-
+OPTIMIZE_CFLAGS="-march=i686 -O2 -mtune=intel -mssse3 -mfpmath=sse -m32"
+build_android
+
+#x86_64
+HOST=x86_64-linux
+ARCH=x86_64
+CPU=x86-64
+CC=$TOOLCHAIN/bin/x86_64-linux-android$API-clang
+CXX=$TOOLCHAIN/bin/x86_64-linux-android$API-clang++
+CROSS_PREFIX=$TOOLCHAIN/bin/x86_64-linux-android-
+OPTIMIZE_CFLAGS="-march=$CPU -msse4.2 -mpopcnt -m64 -mtune=intel"
+build_android
